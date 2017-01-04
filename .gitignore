@@ -5,6 +5,8 @@
 !/gradle*
 !/src/
 !/src/*
+!/metadata/
+!/metadata/*
 !/*.gradle
 /.gradle/
 !/build.properties
