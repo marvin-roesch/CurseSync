@@ -1,5 +1,7 @@
 CurseSync
 =========
+[![Travis](https://img.shields.io/travis/PaleoCrafter/CurseSync.svg?style=flat-square)](https://travis-ci.org/PaleoCrafter/CurseSync/)
+[![Bintray](https://img.shields.io/bintray/v/paleocrafter/MinecraftMods/CurseSync.svg?style=flat-square)](https://bintray.com/paleocrafter/MinecraftMods/CurseSync)
 
 CurseSync is an application which enables Curse modpack downloading capabilities without the [Curse](https://curse.com) client.
 
