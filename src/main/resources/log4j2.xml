@@ -1,0 +1,27 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<Configuration status="WARN">
+    <Appenders>
+        <Console name="Console" target="SYSTEM_OUT">
+            <PatternLayout
+                    pattern="%highlight{%d{HH:mm:ss.SSS} [%5level] %logger{36} %msg%n}{FATAL=red blink, ERROR=red, WARN=yellow bold, INFO=white, DEBUG=green bold, TRACE=blue}"/>
+        </Console>
+        <Console name="Console-CLI" target="SYSTEM_OUT">
+            <PatternLayout
+                    pattern="%highlight{%d{HH:mm:ss.SSS} [%5level] %msg%n}{FATAL=red blink, ERROR=red, WARN=yellow bold, INFO=white, DEBUG=green bold, TRACE=blue}"/>
+        </Console>
+        <File name="File" fileName="cursesync.log">
+            <PatternLayout pattern="%d{ISO8601} [%5level] %logger{36} %msg%n"/>
+        </File>
+    </Appenders>
+    <Loggers>
+        <Logger name="de.mineformers.cursesync.cli.CommandLineInterface" level="trace">
+            <AppenderRef ref="Console-CLI"/>
+        </Logger>
+        <Logger name="CurseSync" level="trace">
+            <AppenderRef ref="Console"/>
+        </Logger>
+        <Root>
+            <AppenderRef ref="File"/>
+        </Root>
+    </Loggers>
+</Configuration>

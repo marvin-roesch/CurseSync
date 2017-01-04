@@ -1,0 +1,191 @@
+buildscript {
+    repositories {
+        jcenter()
+        mavenCentral()
+        maven {
+            name = "sonatype"
+            url = "https://oss.sonatype.org/content/repositories/snapshots/"
+        }
+    }
+    dependencies {
+        classpath 'com.github.jengelman.gradle.plugins:shadow:1.2.4'
+        classpath 'com.jfrog.bintray.gradle:gradle-bintray-plugin:1.7.3'
+    }
+}
+
+apply plugin: 'java'
+apply plugin: 'com.github.johnrengelman.shadow'
+apply plugin: 'com.jfrog.bintray'
+apply plugin: 'maven-publish'
+
+def parseConfig(File config) {
+    config.withReader {
+        def prop = new Properties()
+        prop.load(it)
+        return (new ConfigSlurper().parse(prop))
+    }
+}
+
+ext.config = parseConfig(file('build.properties'))
+def privateConfig = file('private.properties').exists()
+if (privateConfig)
+    ext.priv = parseConfig(file('private.properties'))
+def tagMatcher = "git tag --contains HEAD".execute().text =~ /v[-\d.]+/
+ext["gitTag"] = tagMatcher.count > 0 ? tagMatcher[0] : null
+
+def isRelease() { return project.gitTag == "v${project.version}" && System.getenv("CI") == "true" }
+
+group 'de.mineformers.cursesync'
+archivesBaseName = 'cursesync'
+version = "${config.version}"
+if (System.getenv("TRAVIS_BUILD_NUMBER") != null && System.getenv("TRAVIS_BRANCH") != "master") {
+    version = "$version+${System.getenv("TRAVIS_BRANCH")}.b${System.getenv("TRAVIS_BUILD_NUMBER")}"
+} else if (System.getenv("TRAVIS_BUILD_NUMBER") != null && !isRelease()) {
+    version = "$version+b${System.getenv("TRAVIS_BUILD_NUMBER")}"
+}
+sourceCompatibility = 1.8
+targetCompatibility = 1.8
+
+repositories {
+    mavenCentral()
+    jcenter()
+}
+
+configurations {
+    shade
+    compile.extendsFrom shade
+}
+
+dependencies {
+    shade 'org.apache.logging.log4j:log4j-api:2.7'
+    shade 'org.apache.logging.log4j:log4j-core:2.7'
+    shade 'net.sf.jopt-simple:jopt-simple:6.0-alpha-1'
+    shade 'org.apache.httpcomponents:httpclient:4.5.2'
+    shade 'com.google.code.findbugs:jsr305:3.0.1'
+    shade 'com.google.guava:guava:20.0'
+    shade 'com.google.code.gson:gson:2.8.0'
+    shade 'org.fusesource.jansi:jansi:1.14'
+    shade 'org.jsoup:jsoup:1.10.1'
+    shade 'org.controlsfx:controlsfx:8.40.12'
+    shade 'com.google.inject:guice:4.1.0'
+    shade 'com.gluonhq:ignite-guice:1.0.0'
+    shade 'commons-codec:commons-codec:1.10'
+    shade 'commons-io:commons-io:2.5'
+    shade 'org.apache.commons:commons-exec:1.3'
+}
+
+jar {
+    manifest {
+        attributes("Main-Class": "de.mineformers.cursesync.CurseSync")
+    }
+}
+
+shadowJar {
+    configurations = [project.configurations.shade]
+    classifier ''
+}
+
+processResources {
+    // this will ensure that this task is redone when the versions change.
+    inputs.property 'version', config.version
+
+    // replace stuff in app.properties, nothing else
+    from(sourceSets.main.resources.srcDirs) {
+        include 'app.properties'
+
+        expand 'version': project.version
+    }
+
+    // copy everything else other than the app.properties
+    from(sourceSets.main.resources.srcDirs) {
+        exclude 'app.properties'
+    }
+}
+
+tasks.build.dependsOn shadowJar
+
+def bintrayApi = privateConfig ? priv.bintray_api : System.getenv("PROJECT_BINTRAY_API")
+def bintrayUser = privateConfig ? priv.bintray_user : System.getenv("PROJECT_BINTRAY_USER")
+
+if (bintrayApi != null) {
+    bintray {
+        user = bintrayUser
+        key = bintrayApi
+        publications = ["CurseSync"]
+
+        pkg {
+            repo = "MinecraftMods"
+            name = "CurseSync"
+            licenses = ["MIT"]
+            websiteUrl = 'http://minecraft.curseforge.com/projects/bit-replicator'
+            issueTrackerUrl = 'https://github.com/PaleoCrafter/CurseSync/issues'
+            vcsUrl = "https://github.com/PaleoCrafter/CurseSync.git"
+            publicDownloadNumbers = true
+            githubRepo = "PaleoCrafter/CurseSync"
+            publish = true
+
+            version {
+                name = project.version
+                released = new Date()
+
+                if (isRelease()) {
+                    vcsTag = project.gitTag
+                }
+            }
+        }
+    }
+}
+
+publishing {
+    publications {
+        CurseSync(MavenPublication) {
+            from components.java
+
+            groupId 'de.mineformers.cursesync'
+            artifactId 'cursesync'
+            version project.version
+
+            artifact sourceJar {
+                classifier "sources"
+            }
+        }
+    }
+}
+
+task sourceJar(type: Jar, dependsOn: classes) {
+    classifier = 'sources'
+    from sourceSets.main.allSource
+}
+
+artifacts {
+    archives sourceJar
+}
+
+sourceJar.dependsOn shadowJar
+bintrayUpload.dependsOn shadowJar
+
+import groovy.json.JsonSlurper
+
+task generateChangelogs() {
+    doLast {
+        def changeFile = file('metadata/changes.json')
+        def changes = new JsonSlurper().parseText(changeFile.text)
+        def lists = []
+        ["additions", "changes", "fixes"].each {
+            if (changes.containsKey(it) && !changes[it].isEmpty()) {
+                def list = "  - **${it.capitalize()}**"
+                changes[it].each {
+                    list += "\n    - $it"
+                }
+                lists.add(list)
+            }
+        }
+        def changelogFile = file("CHANGELOG.md")
+        changelogFile.text = """Changelog
+=========
+
+### Version ${config.version}
+${lists.join("\n")}
+${changelogFile.text.readLines().drop(2).join("\n")}"""
+    }
+}

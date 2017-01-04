@@ -1,0 +1,13 @@
+/*
+!/.travis.yml
+!/gradle/
+!/gradle/*
+!/gradle*
+!/src/
+!/src/*
+!/*.gradle
+/.gradle/
+!/build.properties
+!/*.md
+!/LICENSE
+!/.gitignore
