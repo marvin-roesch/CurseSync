@@ -80,7 +80,6 @@ public class CommandLineInterface implements CurseSyncInterface
         }
         config.dump(log, Level.INFO);
         log.info("============================================================================");
-        api.init();
         log.info("Validating configuration...");
         CurseProject project;
         try

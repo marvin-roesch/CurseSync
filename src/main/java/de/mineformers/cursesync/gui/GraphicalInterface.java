@@ -58,7 +58,6 @@ public class GraphicalInterface extends Application implements CurseSyncInterfac
         log.info("Starting CurseSync GUI Client with the following configuration:");
         config.dump(log, Level.INFO);
         log.info("===============================================================");
-        api.init();
         closeRequestHandler = event ->
         {
             app.shutdownExecutor();

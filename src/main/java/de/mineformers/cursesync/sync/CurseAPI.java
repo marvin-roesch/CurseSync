@@ -66,22 +66,6 @@ public class CurseAPI
     @Inject
     private HttpClient http;
 
-    public void init()
-    {
-        try
-        {
-            log.info("Initializing HTTP client...");
-            // Initialise HTTP client such that we get cookies.
-            http.execute(new HttpGet(getURI(CURSEFORGE_URL, "/search", null)));
-            log.info("Done.");
-        }
-        catch (Exception e)
-        {
-            log.error("Failed to initialize HTTP client.", e);
-            System.exit(1);
-        }
-    }
-
     @Nonnull
     public URI getCFURI(@Nullable String path, @Nullable String query) throws URISyntaxException
     {
@@ -295,7 +279,7 @@ public class CurseAPI
             }
             catch (Exception e)
             {
-                log.error(new FormattedMessageFactory().newMessage("Failed to download file, starting attempt #{}.", trial), e);
+                log.error(new FormattedMessageFactory().newMessage("Failed to download file, starting attempt #{}.", trial + 1), e);
             }
         }
         log.error("Failed to download file after {} attempts.", trials);
