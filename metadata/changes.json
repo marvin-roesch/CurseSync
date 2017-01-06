@@ -1,5 +1,10 @@
 {
   "additions": [],
-  "changes": [],
-  "fixes": []
+  "changes": [
+    "Mod downloads are now asynchronous (i.e. up to 10 mods will be downloaded at once)"
+  ],
+  "fixes": [
+    "Mod files containing spaces no longer get downloaded incorrectly",
+    "The application will no longer crash in the Forge installation step if the output directory does not exist before launch"
+  ]
 }

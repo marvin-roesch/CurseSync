@@ -34,6 +34,7 @@ import org.apache.http.client.HttpClient;
 import org.apache.http.client.config.RequestConfig;
 import org.apache.http.impl.client.BasicCookieStore;
 import org.apache.http.impl.client.HttpClientBuilder;
+import org.apache.http.impl.conn.PoolingHttpClientConnectionManager;
 import org.apache.logging.log4j.Level;
 import org.apache.logging.log4j.Logger;
 
@@ -122,16 +123,22 @@ public class CurseSync
             System.exit(1);
         }
         saveConfig();
-        executor = Executors.newCachedThreadPool();
+        executor = Executors.newFixedThreadPool(10);
         BasicCookieStore store = new BasicCookieStore();
         RequestConfig requestConfig = RequestConfig.custom()
                 .setCircularRedirectsAllowed(true)
+                .setConnectionRequestTimeout(30000)
+                .setConnectTimeout(30000)
+                .setSocketTimeout(30000)
                 .build();
+        PoolingHttpClientConnectionManager cm = new PoolingHttpClientConnectionManager();
+        cm.setMaxTotal(20);
         http = HttpClientBuilder.create()
                 .setUserAgent("CurseSync")
                 .setDefaultCookieStore(store)
                 .setDefaultRequestConfig(requestConfig)
                 .setRedirectStrategy(SafeRedirectStrategy.INSTANCE)
+                .setConnectionManager(cm)
                 .build();
         context = new GuiceContext(this, () -> ImmutableList.of(new GuiceModule()));
         context.init();

@@ -23,7 +23,11 @@ import java.net.URISyntaxException;
 import java.nio.file.Paths;
 import java.util.List;
 import java.util.Objects;
+import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.ExecutionException;
+import java.util.concurrent.ExecutorService;
 import java.util.stream.Collectors;
+import java.util.stream.Stream;
 import java.util.zip.ZipEntry;
 import java.util.zip.ZipInputStream;
 
@@ -41,6 +45,8 @@ public abstract class Installer
     protected Logger log;
     @Inject
     protected FileStrategy strategy;
+    @Inject
+    protected ExecutorService executor;
     protected CurseProject project;
     protected ProjectVersion version;
     protected PackManifest manifest;
@@ -141,47 +147,68 @@ public abstract class Installer
     {
         log.info("Mod repository is located at '{}'.", installation.modRepository.getAbsolutePath());
         log.info("Downloading required mod files to repository...");
-        List<Integer> failingIds = Lists.newArrayList();
-        for (Mod mod : manifest.mods)
-        {
-            if (!acceptsMod(mod))
-            {
-                log.info("Mod with id {}, version {} is not required on this side, skipping file...", mod.projectId, mod.fileId);
-                continue;
-            }
-            File modPath = new File(installation.modRepository.getAbsolutePath() + "/" + mod.artifactPath("jar"));
-            if (modPath.exists())
-            {
-                log.info("Mod with id {}, version {} was already downloaded, skipping file...", mod.projectId, mod.fileId);
-                continue;
-            }
-            String slug = api.getModSlug(mod.projectId);
-            if (slug == null)
-            {
-                log.error("Could not get slug for project id {}, skipping file...", mod.projectId);
-                failingIds.add(mod.projectId);
-                continue;
-            }
-            log.info("Downloading file {} for mod {} (id: {})", mod.fileId, slug, mod.projectId);
-            try
-            {
-                if (!api.downloadFile(api.getCFURI("/projects/" + slug + "/files/" + mod.fileId + "/download", null), modPath, 3))
+        Stream<CompletableFuture<Integer>> downloads = manifest.mods.stream().map(mod ->
+                CompletableFuture.supplyAsync(() ->
                 {
-                    failingIds.add(mod.projectId);
-                }
-            }
-            catch (URISyntaxException e)
+                    if (!acceptsMod(mod))
+                    {
+                        log.info("Mod with id {}, version {} is not required on this side, skipping file...", mod.projectId, mod.fileId);
+                        return -1;
+                    }
+                    File modPath = new File(installation.modRepository.getAbsolutePath() + "/" + mod.artifactPath("jar"));
+                    if (modPath.exists())
+                    {
+                        log.info("Mod with id {}, version {} was already downloaded, skipping file...", mod.projectId, mod.fileId);
+                        return -1;
+                    }
+                    String slug = api.getModSlug(mod.projectId);
+                    if (slug == null)
+                    {
+                        log.error("Could not get slug for project id {}, skipping file...", mod.projectId);
+                        return mod.projectId;
+                    }
+                    log.info("Downloading file {} for mod {} (id: {})", mod.fileId, slug, mod.projectId);
+                    try
+                    {
+                        if (!api.downloadFile(api.getCFURI("/projects/" + slug + "/files/" + mod.fileId + "/download", null), modPath, 3))
+                        {
+                            return mod.projectId;
+                        }
+                    }
+                    catch (URISyntaxException e)
+                    {
+                        log.error("Could not parse download url, skipping file...");
+                        return mod.projectId;
+                    }
+                    return -1;
+                }, executor)
+        );
+        try
+        {
+            List<Integer> failingIds = sequence(downloads.collect(Collectors.toList())).thenApply(r -> r.stream().filter(i -> i != -1).collect(Collectors.toList())).get();
+            if (!failingIds.isEmpty())
             {
-                log.error("Could not parse download url, skipping file...");
-                failingIds.add(mod.projectId);
+                log.error("Not all mods were successfully downloaded, ");
+                return FAILURE;
             }
         }
-        if (!failingIds.isEmpty())
+        catch (InterruptedException | ExecutionException e)
         {
-            log.error("Not all mods were successfully downloaded, ");
+            log.error("Could not complete download all mods asynchronously!");
             return FAILURE;
         }
         return SUCCESS;
+    }
+
+    private static <T> CompletableFuture<List<T>> sequence(List<CompletableFuture<T>> futures)
+    {
+        CompletableFuture<Void> allDoneFuture =
+                CompletableFuture.allOf(futures.toArray(new CompletableFuture[futures.size()]));
+        return allDoneFuture.thenApply(v ->
+                futures.stream().
+                        map(CompletableFuture::join).
+                        collect(Collectors.toList())
+        );
     }
 
     protected InstallStep.Result prepareDirectory()
