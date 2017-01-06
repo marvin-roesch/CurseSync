@@ -40,7 +40,7 @@ public class SafeRedirectStrategy extends DefaultRedirectStrategy
 
     private static boolean isUnsafe(char ch)
     {
-        return ch > 128 || " %$+,;@<>[]".indexOf(ch) >= 0;
+        return ch > 128 || " $+,;@<>[]".indexOf(ch) >= 0;
     }
 
     @Override
