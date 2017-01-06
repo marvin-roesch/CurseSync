@@ -28,16 +28,26 @@ public abstract class FileStrategy
     @Inject
     protected Installation installation;
 
-    public boolean prepareDirectory()
-    {
-        return true;
-    }
-
     public boolean canInstall()
     {
         if (config.server != installation.server)
         {
             log.error("The existing installation in the output directory is for a different side than the current configuration, aborting!");
+            return false;
+        }
+        return true;
+    }
+
+    public boolean prepareDirectory()
+    {
+        if (config.output == null)
+        {
+            log.error("Output directory unexpectedly was null!");
+            return false;
+        }
+        if (!config.output.exists() && !config.output.mkdirs())
+        {
+            log.error("Failed to create output directory!");
             return false;
         }
         return true;
