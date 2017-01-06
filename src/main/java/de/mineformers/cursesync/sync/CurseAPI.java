@@ -9,11 +9,14 @@ import com.google.common.cache.CacheBuilder;
 import com.google.common.collect.ImmutableList;
 import com.google.inject.Inject;
 import de.mineformers.cursesync.sync.model.CurseProject;
+import org.apache.http.HttpHost;
 import org.apache.http.HttpResponse;
 import org.apache.http.client.HttpClient;
-import org.apache.http.client.config.RequestConfig;
 import org.apache.http.client.methods.HttpGet;
 import org.apache.http.client.methods.HttpUriRequest;
+import org.apache.http.protocol.BasicHttpContext;
+import org.apache.http.protocol.HttpContext;
+import org.apache.http.protocol.HttpCoreContext;
 import org.apache.http.util.EntityUtils;
 import org.apache.logging.log4j.Logger;
 import org.apache.logging.log4j.message.FormattedMessageFactory;
@@ -104,20 +107,16 @@ public class CurseAPI
         {
             log.debug("Getting mod slug from server...");
             URI uri = getURI(CURSEFORGE_URL, String.format(PROJECT_PATH, id), null);
-            RequestConfig requestConfig = RequestConfig.custom()
-                    .setRedirectsEnabled(false)
-                    .build();
             HttpGet request = new HttpGet(uri.toURL().toString());
-            request.setConfig(requestConfig);
-            HttpResponse response = http.execute(request);
-            int statusCode = response.getStatusLine().getStatusCode();
-            if (statusCode == 301 || statusCode == 302)
-            {
-                Splitter splitter = Splitter.on('/').omitEmptyStrings();
-                List<String> pathParts = splitter.splitToList(response.getFirstHeader("Location").getValue());
-                return pathParts.get(pathParts.size() - 1);
-            }
-            return null;
+            HttpContext context = new BasicHttpContext();
+            HttpResponse response = http.execute(request, context);
+            EntityUtils.consume(response.getEntity());
+            HttpUriRequest currentReq = (HttpUriRequest) context.getAttribute(HttpCoreContext.HTTP_REQUEST);
+            HttpHost currentHost = (HttpHost) context.getAttribute(HttpCoreContext.HTTP_TARGET_HOST);
+            String currentUrl = (currentReq.getURI().isAbsolute()) ? currentReq.getURI().toString() : (currentHost.toURI() + currentReq.getURI());
+            Splitter splitter = Splitter.on('/').omitEmptyStrings();
+            List<String> pathParts = splitter.splitToList(currentUrl);
+            return pathParts.get(pathParts.size() - 1);
         }
         catch (Exception e)
         {
